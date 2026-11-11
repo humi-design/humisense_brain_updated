@@ -16,6 +16,7 @@ from app.api.routers import (
     discovery,
     health as health_router,
     sync,
+    tenants,
     webhooks,
 )
 from app.connectors.bootstrap import bootstrap_registry, persist_registry
@@ -106,6 +107,7 @@ def create_app() -> FastAPI:
 
     prefix = settings.api_prefix
     app.include_router(health_router.router, prefix=prefix)
+    app.include_router(tenants.router, prefix=prefix)
     app.include_router(connectors.router, prefix=prefix)
     app.include_router(connections.router, prefix=prefix)
     app.include_router(discovery.router, prefix=prefix)
