@@ -67,6 +67,58 @@ a fixed set of public hosts; do that at the network layer.
 | `HUMISENSE_SYNC_BACKOFF_BASE_SECONDS` | `1.0` | Exponential backoff base; jitter is added. |
 | `HUMISENSE_SYNC_BACKOFF_MAX_SECONDS` | `120.0` | Backoff ceiling. |
 
+## Backend — authentication and authorization
+
+Identity comes from one of two mutually exclusive sources, selected by
+`HUMISENSE_AUTH_MODE`. `Settings` validates the configuration at startup and refuses to
+start if it is unusable or unsafe. See `docs/MILESTONE_0.md` for the full model.
+
+### Choosing a mode
+
+| Mode | When to use | Identity source |
+|---|---|---|
+| `oidc` | **Any real deployment.** | A verified bearer JWT. Role and tenant come from the `users` row the verified subject maps to. |
+| `header` | Local development and tests only. | `X-Tenant-Id` / `X-User-Id` / `X-User-Role`, trusted as sent. |
+
+`header` mode **refuses to start** unless `HUMISENSE_ENVIRONMENT` is one of `development`,
+`dev`, `local`, `test`, `testing`. It cannot be enabled in production.
+
+### OIDC settings
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `HUMISENSE_AUTH_MODE` | `header` | `oidc` or `header`. |
+| `HUMISENSE_AUTH_OIDC_ISSUER` | — | **Required for `oidc`.** Exact `iss` value. Must match the provider's token exactly, including any trailing slash. |
+| `HUMISENSE_AUTH_OIDC_AUDIENCE` | — | **Required for `oidc`.** Expected `aud` — the API audience or client id. |
+| `HUMISENSE_AUTH_OIDC_JWKS_URL` | — | **Required for `oidc`** unless `HUMISENSE_AUTH_OIDC_HMAC_SECRET` is set. Public key set for signature verification. |
+| `HUMISENSE_AUTH_OIDC_ALGORITHMS` | `RS256,ES256` | Comma-separated or JSON allow-list. `none` is rejected. HS* is rejected when a JWKS URL is set. |
+| `HUMISENSE_AUTH_OIDC_HMAC_SECRET` | — | Symmetric secret. Only valid alongside an HS* algorithm and **without** a JWKS URL. |
+| `HUMISENSE_AUTH_OIDC_TENANT_CLAIM` | — | Reserved for mapping a provider claim to tenant membership. |
+| `HUMISENSE_AUTH_ALLOW_TENANT_HEADER_SELECTION` | `true` | Permit `X-Tenant-Id` to select among memberships the verified subject already holds. It can only select, never grant. |
+| `HUMISENSE_AUTH_JWKS_CACHE_SECONDS` | `300` | JWKS cache lifetime. |
+| `HUMISENSE_AUTH_LEEWAY_SECONDS` | `30` | Clock-skew tolerance for `exp` / `nbf`. |
+| `HUMISENSE_BOOTSTRAP_TOKEN` | — | Break-glass: allows the first tenant and owner to be created with no principal. **Closes permanently** once a tenant exists, and **refuses to start in production**. |
+| `HUMISENSE_METRICS_TOKEN` | — | Bearer token guarding `/metrics`. **Required in production.** |
+
+### Example — Microsoft Entra ID
+
+```bash
+export HUMISENSE_AUTH_MODE=oidc
+export HUMISENSE_AUTH_OIDC_ISSUER="https://login.microsoftonline.com/<tenant-id>/v2.0"
+export HUMISENSE_AUTH_OIDC_AUDIENCE="api://<application-client-id>"
+export HUMISENSE_AUTH_OIDC_JWKS_URL="https://login.microsoftonline.com/<tenant-id>/discovery/v2.0/keys"
+export HUMISENSE_AUTH_OIDC_ALGORITHMS="RS256"
+export HUMISENSE_METRICS_TOKEN="$(python -c 'import secrets;print(secrets.token_urlsafe(32))')"
+```
+
+### First-run provisioning
+
+1. Set `HUMISENSE_BOOTSTRAP_TOKEN` to a strong random value.
+2. `POST /api/v1/tenants` with header `X-Bootstrap-Token: <value>` and body
+   `{"name": "...", "owner_email": "...", "owner_external_subject": "<idp-subject>"}`.
+3. **Unset `HUMISENSE_BOOTSTRAP_TOKEN` and restart.** The bootstrap path is already closed
+   by the existence of the tenant; removing the variable removes it from the environment.
+
 ## Backend — security
 
 | Variable | Default | Purpose |
@@ -80,13 +132,19 @@ a fixed set of public hosts; do that at the network layer.
 - `HUMISENSE_RATE_LIMIT_DEFAULT_PER_MINUTE` is defined in `config.py` but no code reads it.
   Application-level rate limiting is therefore **not implemented**; only provider-side 429
   handling exists (backoff and `Retry-After` respect in `app/core/http.py`).
+- `HUMISENSE_AUTH_OIDC_TENANT_CLAIM` is reserved: no code reads it yet. Tenant membership is
+  currently resolved from the `users` table, not from a provider claim.
+- Row-level security is **not wired into the query path**. `tenant_session` in
+  `app/db/session.py` exists but is never called, and there is no `app/db/rls.py`. Tenant
+  isolation is enforced in the service layer and by principal resolution, and is covered by
+  tests, but a database-level policy would be defence in depth. Tracked as a follow-up.
 - The SQL adapter applies no statement timeout. It relies on executing against a read-only
   connection. A statement-timeout setting does not exist.
 - The file adapter's permitted roots are **not** an environment variable. They are configured
   per connection in the adapter's `allowed_roots` list, and local file access is refused when
   that list is empty.
 - No OAuth redirect-URI setting exists, because the interactive authorization-code flow is not
-  implemented (see `AUDIT.md` §5).
+  implemented (see `AUDIT.md` §5). Layer 1 verifies tokens; it does not issue them.
 
 ## Frontend
 

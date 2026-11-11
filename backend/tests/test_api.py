@@ -4,6 +4,13 @@ These drive the real HTTP surface (auth, tenant headers, error mapping) and
 prove the acceptance criteria that can be checked without a live provider:
 register, authorise, test (mocked transport), resource selection, sync,
 tenant isolation, revocation and discovery.
+
+**Authentication note.** These tests run in ``header`` mode, which is the
+development/test identity mode.  It is permitted only because
+``HUMISENSE_ENVIRONMENT=test``; ``Settings`` refuses to start with header mode
+in any other environment, and ``tests/test_auth_config.py`` proves that.  The
+real token-verification path is covered by ``tests/test_auth_oidc.py`` and
+``tests/test_authorization.py``.
 """
 
 from __future__ import annotations

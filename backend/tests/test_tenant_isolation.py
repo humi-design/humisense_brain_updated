@@ -100,3 +100,35 @@ def test_cross_tenant_credential_decryption_is_impossible(db, tenant, other_tena
     )
     with pytest.raises(CredentialDecryptionError):
         get_cipher().open(sealed, tenant_id=other_tenant.id, connection_id=connection.id)
+
+
+def test_unknown_role_header_is_rejected(db, tenant):
+    """Header mode validates the role against the known set.
+
+    A client cannot invent a role.  (It can still claim an existing one, which
+    is exactly why header mode is confined to development — see
+    ``tests/test_authorization.py`` for the token-verified equivalent.)
+    """
+    from fastapi.testclient import TestClient
+
+    from app.connectors.bootstrap import persist_registry
+    from app.main import app
+
+    persist_registry(db)
+    db.commit()
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/v1/connections",
+            headers={"X-Tenant-Id": tenant.id, "X-User-Role": "superuser"},
+        )
+    assert response.status_code == 403
+
+
+def test_header_mode_requires_tenant_header(db, tenant):
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    with TestClient(app) as client:
+        response = client.get("/api/v1/connections")
+    assert response.status_code == 401

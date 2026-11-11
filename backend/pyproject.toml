@@ -15,6 +15,8 @@ dependencies = [
     "httpx>=0.27",
     "structlog>=24.1",
     "python-multipart>=0.0.9",
+    # OIDC/JWT access-token verification (signature, issuer, audience, expiry).
+    "PyJWT[crypto]>=2.8",
 ]
 
 [project.optional-dependencies]

@@ -82,6 +82,14 @@ def apply_row_level_security() -> None:
 
     This is a no-op on SQLite (used in tests), where tenant scoping is enforced
     in the service layer.
+
+    WARNING — not safe to enable yet.  The policies read
+    ``current_setting('humisense.current_tenant')``, but the request path
+    (``app.api.deps.get_db``) never sets it.  With ``FORCE ROW LEVEL SECURITY``
+    in place every query would therefore see zero rows, and provisioning could
+    not insert the first tenant.  Calling this before the request path binds
+    the GUC takes the application offline.  It is retained as the basis for
+    that work, and is not invoked at startup.
     """
     if not is_postgres():
         return
