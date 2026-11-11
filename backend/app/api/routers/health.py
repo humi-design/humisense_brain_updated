@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-import time
+import secrets
+from typing import Annotated
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Header, Response
 from sqlalchemy import text
 
-from app.api.deps import CurrentPrincipal, DbSession
+from app.api.deps import CurrentPrincipal
 from app.api.schemas import EventContractOut, HealthOut
 from app.connectors.registry import registry
 from app.core.config import settings
+from app.core.errors import AuthenticationError
 from app.db.session import get_engine
 from app.events.contract import contract_document
 
@@ -53,10 +55,32 @@ def health() -> HealthOut:
 
 
 @router.get("/metrics")
-def metrics() -> Response:
+def metrics(
+    authorization: Annotated[str | None, Header()] = None,
+) -> Response:
+    """Operational counters.
+
+    When ``HUMISENSE_METRICS_TOKEN`` is configured, a matching bearer token is
+    required.  The setting is mandatory in production, so the endpoint is never
+    world-readable there.
+    """
+    expected = settings.metrics_token
+    if expected:
+        supplied = _bearer(authorization)
+        if supplied is None or not secrets.compare_digest(supplied, expected):
+            raise AuthenticationError("Metrics require a valid bearer token.")
     lines = [f"humisense_layer1_{key} {value}" for key, value in sorted(_METRICS.items())]
-    lines.append(f"humisense_layer1_up 1")
+    lines.append("humisense_layer1_up 1")
     return Response("\n".join(lines) + "\n", media_type="text/plain")
+
+
+def _bearer(value: str | None) -> str | None:
+    if not value:
+        return None
+    scheme, _, token = value.partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        return None
+    return token.strip()
 
 
 @router.get("/events/contract", response_model=EventContractOut)

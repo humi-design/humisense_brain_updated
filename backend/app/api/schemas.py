@@ -247,6 +247,80 @@ class AuditLogOut(BaseModel):
     created_at: datetime
 
 
+class TenantCreateIn(BaseModel):
+    """Provision a tenant and its first owner in one operation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=255)
+    slug: str | None = Field(default=None, max_length=64)
+    owner_email: str = Field(min_length=3, max_length=320)
+    owner_display_name: str | None = Field(default=None, max_length=255)
+    # Identity linkage is optional: an administrator may invite by email and let
+    # the subject attach on first login.
+    owner_external_subject: str | None = Field(default=None, max_length=255)
+
+
+class TenantOut(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    tenant_id: str
+    name: str
+    slug: str
+    is_active: bool
+    created_at: datetime
+
+
+class MembershipCreateIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: str = Field(min_length=3, max_length=320)
+    role: str = Field(default="member")
+    display_name: str | None = Field(default=None, max_length=255)
+    external_subject: str | None = Field(default=None, max_length=255)
+
+
+class MembershipOut(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    membership_id: str
+    tenant_id: str
+    email: str
+    display_name: str
+    role: str
+    is_active: bool
+    identity_linked: bool
+    created_at: datetime
+
+
+class MembershipActiveIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    active: bool
+
+
+class LinkIdentityIn(BaseModel):
+    """Bind a verified provider subject to an existing membership."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    external_subject: str = Field(min_length=1, max_length=255)
+
+
+class WhoAmIOut(BaseModel):
+    """The server-resolved identity. Proof that headers are not trusted."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    tenant_id: str
+    user_id: str | None
+    role: str
+    subject: str | None
+    source: str
+    is_admin: bool
+    auth_mode: str
+
+
 class HealthOut(BaseModel):
     status: str
     version: str

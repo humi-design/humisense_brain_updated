@@ -1,9 +1,19 @@
 """SQLAlchemy ORM models for Layer 1.
 
 Every tenant-owned table carries a ``tenant_id`` column and every query in the
-service layer filters on it.  On PostgreSQL the models also declare
-row-level-security policies (see ``app/db/rls.py``) so that a coding mistake in
-one service cannot leak another tenant's rows.
+service layer filters on it.  On PostgreSQL the application can additionally
+enable row-level security (see ``apply_row_level_security`` in
+``app.db.session``) so that a coding mistake in one service cannot leak another
+tenant's rows.
+
+Identity model
+--------------
+A ``users`` row is a **membership**: it binds one authenticated subject
+(``external_issuer`` + ``external_subject``) to exactly one tenant, and carries
+the role that subject holds *in that tenant*.  A person who belongs to two
+organizations therefore has two rows with the same subject and different
+``tenant_id``.  This reuses the existing tenant foreign key and unique
+constraint instead of introducing a parallel table.
 """
 
 from __future__ import annotations
@@ -50,6 +60,14 @@ class Tenant(Base):
 
 
 class User(Base):
+    """Tenant membership for an authenticated subject.
+
+    ``external_subject`` is the identity provider's ``sub`` and
+    ``external_issuer`` the provider's ``iss``.  Both are required before a
+    token can resolve to a membership; a subject that is unknown, inactive, or
+    whose tenant is inactive is rejected at the API boundary.
+    """
+
     __tablename__ = "users"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_uuid)
@@ -60,9 +78,22 @@ class User(Base):
     display_name: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[str] = mapped_column(String(32), default="member")  # owner|admin|member|viewer
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Identity-provider linkage.  Nullable so existing rows survive the
+    # migration; a row without a subject can never authenticate.
+    external_issuer: Mapped[str | None] = mapped_column(String(512), index=True)
+    external_subject: Mapped[str | None] = mapped_column(String(255), index=True)
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
-    __table_args__ = (UniqueConstraint("tenant_id", "email", name="uq_user_tenant_email"),)
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "email", name="uq_user_tenant_email"),
+        # A subject may hold one membership per tenant, and the same subject in
+        # several tenants (one row each).
+        UniqueConstraint(
+            "external_issuer", "external_subject", "tenant_id", name="uq_user_subject_tenant"
+        ),
+        Index("ix_users_subject", "external_issuer", "external_subject"),
+    )
 
 
 class ConnectorRegistration(Base):
@@ -134,7 +165,9 @@ class Credential(Base):
     __tablename__ = "credentials"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_uuid)
-    tenant_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True, nullable=False
+    )
     connection_id: Mapped[str] = mapped_column(
         ForeignKey("connections.id", ondelete="CASCADE"), unique=True, nullable=False
     )
@@ -156,7 +189,9 @@ class ConnectionResource(Base):
     __tablename__ = "connection_resources"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_uuid)
-    tenant_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True, nullable=False
+    )
     connection_id: Mapped[str] = mapped_column(
         ForeignKey("connections.id", ondelete="CASCADE"), index=True, nullable=False
     )
@@ -180,7 +215,9 @@ class SyncConfig(Base):
     __tablename__ = "sync_configs"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_uuid)
-    tenant_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True, nullable=False
+    )
     connection_id: Mapped[str] = mapped_column(
         ForeignKey("connections.id", ondelete="CASCADE"), unique=True, nullable=False
     )
@@ -201,7 +238,9 @@ class SyncCheckpointRow(Base):
     __tablename__ = "sync_checkpoints"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_uuid)
-    tenant_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True, nullable=False
+    )
     connection_id: Mapped[str] = mapped_column(
         ForeignKey("connections.id", ondelete="CASCADE"), index=True, nullable=False
     )
@@ -221,7 +260,9 @@ class SyncRunRow(Base):
     __tablename__ = "sync_runs"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_uuid)
-    tenant_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True, nullable=False
+    )
     connection_id: Mapped[str] = mapped_column(
         ForeignKey("connections.id", ondelete="CASCADE"), index=True, nullable=False
     )
@@ -243,7 +284,9 @@ class DeadLetterRow(Base):
     __tablename__ = "dead_letters"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_uuid)
-    tenant_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True, nullable=False
+    )
     connection_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
     sync_run_id: Mapped[str | None] = mapped_column(String(64))
     resource_id: Mapped[str | None] = mapped_column(String(512))
@@ -259,7 +302,9 @@ class EventOutbox(Base):
     __tablename__ = "event_outbox"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_uuid)
-    tenant_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True, nullable=False
+    )
     connection_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
     event_type: Mapped[str] = mapped_column(String(128), nullable=False)
     schema_version: Mapped[str] = mapped_column(String(16), default="1.0")
@@ -274,7 +319,9 @@ class IntegrationAssessmentRow(Base):
     __tablename__ = "integration_assessments"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_uuid)
-    tenant_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True, nullable=False
+    )
     application_name: Mapped[str] = mapped_column(String(255), nullable=False)
     vendor: Mapped[str | None] = mapped_column(String(255))
     category: Mapped[str] = mapped_column(String(64), default="generic")
@@ -300,7 +347,9 @@ class CustomConnectorDefinitionRow(Base):
     __tablename__ = "custom_connector_definitions"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_uuid)
-    tenant_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True, nullable=False
+    )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     adapter_kind: Mapped[str] = mapped_column(String(32), nullable=False)
     version: Mapped[int] = mapped_column(Integer, default=1)
@@ -319,7 +368,9 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_uuid)
-    tenant_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True, nullable=False
+    )
     actor_id: Mapped[str | None] = mapped_column(String(64))
     action: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     resource_type: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -334,7 +385,9 @@ class WebhookSignatureRecord(Base):
     __tablename__ = "webhook_deliveries"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_uuid)
-    tenant_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    tenant_id: Mapped[str] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True, nullable=False
+    )
     connection_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
     delivery_id: Mapped[str] = mapped_column(String(255), nullable=False)
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

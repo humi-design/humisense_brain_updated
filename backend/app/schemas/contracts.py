@@ -169,6 +169,14 @@ class AuditAction(str, Enum):
     TENANT_ISOLATION_VIOLATION = "tenant_isolation_violation"
     EGRESS_BLOCKED = "egress_blocked"
     WEBHOOK_REJECTED = "webhook_rejected"
+    # --- Milestone 0: identity and provisioning -------------------------
+    TENANT_CREATED = "tenant_created"
+    TENANT_UPDATED = "tenant_updated"
+    MEMBERSHIP_CREATED = "membership_created"
+    MEMBERSHIP_UPDATED = "membership_updated"
+    MEMBERSHIP_REVOKED = "membership_revoked"
+    IDENTITY_AUTHENTICATED = "identity_authenticated"
+    AUTHENTICATION_FAILED = "authentication_failed"
 
 
 # ---------------------------------------------------------------------------
