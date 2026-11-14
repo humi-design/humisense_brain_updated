@@ -5,6 +5,10 @@ import ConnectedSystems from "./pages/ConnectedSystems";
 import Discovery from "./pages/Discovery";
 import ConnectorStudio from "./pages/ConnectorStudio";
 import HealthCentre from "./pages/HealthCentre";
+import Callback from "./pages/Callback";
+import LoggedOut from "./pages/LoggedOut";
+import RequireAuth from "./auth/RequireAuth";
+import IdentityPanel from "./components/IdentityPanel";
 import { useApi } from "./lib/useApi";
 import { api } from "./api/client";
 
@@ -22,7 +26,13 @@ const NAV = [
   ]},
 ];
 
-export default function App() {
+/**
+ * The authenticated application shell.
+ *
+ * Rendered only once a session is ready, so nothing inside it can fetch with a
+ * token that has not been accepted by the backend.
+ */
+function Shell() {
   const health = useApi(() => api.health(), []);
 
   return (
@@ -76,6 +86,8 @@ export default function App() {
               {health.error ? "API unreachable" : "Connecting…"}
             </div>
           )}
+
+          <IdentityPanel />
         </div>
       </aside>
 
@@ -92,5 +104,25 @@ export default function App() {
         </Routes>
       </main>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <Routes>
+      {/* Provider redirect landing pages. Reachable before a session exists. */}
+      <Route path="/auth/callback" element={<Callback />} />
+      <Route path="/auth/logged-out" element={<LoggedOut />} />
+
+      {/* Everything else requires a session the backend has accepted. */}
+      <Route
+        path="*"
+        element={
+          <RequireAuth>
+            <Shell />
+          </RequireAuth>
+        }
+      />
+    </Routes>
   );
 }

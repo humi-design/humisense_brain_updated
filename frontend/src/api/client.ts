@@ -4,7 +4,44 @@
  * The client never invents data: every value rendered in the UI comes from a
  * backend response.  Errors are surfaced verbatim (minus secrets) so the UI can
  * tell the truth about what is and is not connected.
+ *
+ * Authentication is a bearer token obtained by the OIDC provider.  The client
+ * holds no identity of its own: the tenant is a *selection* the backend
+ * re-validates, and the role is whatever the backend reports.
  */
+
+import {
+  ApiError,
+  ForbiddenError,
+  UnauthorizedError,
+} from "./errors";
+import {
+  currentAccessToken,
+  getSelectedTenantId,
+  markSessionHealthy,
+  requestReauthOnce,
+} from "../auth/apiAuth";
+
+export { ApiError, ForbiddenError, UnauthorizedError };
+
+/** The server's answer to "who am I, and what may I do here?" */
+export interface Identity {
+  tenant_id: string;
+  user_id: string;
+  role: string;
+  subject: string;
+  source: string;
+  is_admin: boolean;
+  auth_mode: string;
+}
+
+/** One of the caller's own memberships, from `GET /tenants/memberships`. */
+export interface OwnMembership {
+  tenant_id: string;
+  tenant_name: string;
+  tenant_slug: string | null;
+  role: string;
+}
 
 export type ImplementationState =
   | "PLANNED"
@@ -164,28 +201,23 @@ export interface Health {
   connectors_installable: number;
 }
 
-export class ApiError extends Error {
-  status: number;
-  code: string;
-  detail?: unknown;
-  constructor(status: number, code: string, message: string, detail?: unknown) {
-    super(message);
-    this.status = status;
-    this.code = code;
-    this.detail = detail;
-  }
-}
-
 const API_BASE = import.meta.env.VITE_API_BASE || "/api/v1";
 
-function identityHeaders(): Record<string, string> {
+/**
+ * Build the headers for one request.
+ *
+ * The only identity this client sends is a bearer token plus, optionally, the
+ * tenant the user selected.  It never sends `X-User-Role` or `X-User-Id`: those
+ * are not trusted by the backend in OIDC mode, and sending them would suggest
+ * the UI has authority it does not have.  The role shown in the interface comes
+ * from `whoami`, which is the server's answer, not the client's claim.
+ */
+function authHeaders(): Record<string, string> {
   const headers: Record<string, string> = {};
-  const tenant = import.meta.env.VITE_TENANT_ID || localStorage.getItem("humisense.tenant") || "";
-  const user = import.meta.env.VITE_USER_ID || localStorage.getItem("humisense.user") || "";
-  const role = import.meta.env.VITE_USER_ROLE || "admin";
+  const token = currentAccessToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const tenant = getSelectedTenantId();
   if (tenant) headers["X-Tenant-Id"] = tenant;
-  if (user) headers["X-User-Id"] = user;
-  headers["X-User-Role"] = role;
   return headers;
 }
 
@@ -194,7 +226,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     ...init,
     headers: {
       "Content-Type": "application/json",
-      ...identityHeaders(),
+      ...authHeaders(),
       ...(init.headers || {}),
     },
   });
@@ -209,18 +241,40 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
   if (!response.ok) {
     const record = (body ?? {}) as Record<string, unknown>;
-    throw new ApiError(
-      response.status,
-      String(record.error ?? "request_failed"),
-      String(record.message ?? `Request failed with status ${response.status}`),
-      record.detail,
+    const code = String(record.error ?? "request_failed");
+    const message = String(
+      record.message ?? `Request failed with status ${response.status}`,
     );
+    if (response.status === 401) {
+      // A rejected token is the one failure worth a retry through the provider.
+      // `requestReauthOnce` allows a single attempt per session, so a provider
+      // returning a token the backend keeps refusing cannot redirect forever.
+      requestReauthOnce();
+      throw new UnauthorizedError(message, record.detail);
+    }
+    if (response.status === 403) {
+      throw new ForbiddenError(message, record.detail);
+    }
+    throw new ApiError(response.status, code, message, record.detail);
   }
+  markSessionHealthy();
   return body as T;
 }
 
 export const api = {
   health: () => request<Health>("/health"),
+
+  /** The server's resolved identity. The only trustworthy source of the role. */
+  whoami: () => request<Identity>("/tenants/whoami"),
+
+  /**
+   * The caller's own memberships.
+   *
+   * This is the *only* source of tenant ids the UI may offer.  The backend
+   * re-validates any selection on every subsequent request, so choosing from
+   * this list is a convenience rather than a grant.
+   */
+  listOwnMemberships: () => request<OwnMembership[]>("/tenants/memberships"),
 
   listConnectors: (params?: { category?: string; search?: string; installable_only?: boolean }) => {
     const query = new URLSearchParams();
@@ -287,18 +341,23 @@ export const api = {
   importInventory: async (file: File) => {
     const form = new FormData();
     form.append("file", file);
+    // Multipart: the browser sets Content-Type with the boundary, so only the
+    // credential and tenant selection are added here.
     const response = await fetch(`${API_BASE}/discovery/inventory`, {
       method: "POST",
-      headers: identityHeaders(),
+      headers: authHeaders(),
       body: form,
     });
     const text = await response.text();
     const body = text ? JSON.parse(text) : null;
     if (!response.ok) {
+      const message = String(body?.message ?? "Inventory import failed");
+      if (response.status === 401) throw new UnauthorizedError(message, body?.detail);
+      if (response.status === 403) throw new ForbiddenError(message, body?.detail);
       throw new ApiError(
         response.status,
         String(body?.error ?? "import_failed"),
-        String(body?.message ?? "Inventory import failed"),
+        message,
         body?.detail,
       );
     }

@@ -24,6 +24,7 @@ from app.api.deps import (
     AdminPrincipal,
     CurrentPrincipal,
     DbSession,
+    VerifiedSubjectDep,
     get_principal,
 )
 from app.api.schemas import (
@@ -31,6 +32,7 @@ from app.api.schemas import (
     MembershipActiveIn,
     MembershipCreateIn,
     MembershipOut,
+    SelfMembershipOut,
     TenantCreateIn,
     TenantOut,
     WhoAmIOut,
@@ -135,6 +137,66 @@ def whoami(principal: CurrentPrincipal) -> WhoAmIOut:
         is_admin=principal.is_admin,
         auth_mode=settings.auth_mode_normalised,
     )
+
+
+@router.get("/memberships", response_model=list[SelfMembershipOut])
+def list_own_memberships(
+    subject: VerifiedSubjectDep,
+    db: DbSession,
+) -> list[SelfMembershipOut]:
+    """List the caller's *own* active memberships.
+
+    Self-scoped by construction: the query is filtered by the verified
+    ``(issuer, subject)`` from the token, never by anything the caller sends.
+    There is no parameter to widen it, so a caller cannot use this endpoint to
+    enumerate another person's or another organization's memberships.
+
+    This is the one endpoint reachable *before* a tenant is chosen, so it uses
+    :func:`get_verified_subject` rather than :func:`get_principal`.  A user in
+    several organizations would otherwise be refused as ambiguous by every
+    endpoint — including the one that would tell them what to choose.
+
+    The frontend uses this to offer a tenant choice.  Choosing one only
+    *selects* a membership the subject already holds; every tenant-scoped
+    request re-resolves it server-side, so a forged ``X-Tenant-Id`` still fails
+    at the principal boundary.  This endpoint grants no access to tenant data.
+    """
+    if subject.source == "oidc":
+        rows = TenantService(db).memberships_for_subject(
+            subject.issuer or settings.auth_oidc_issuer, subject.subject
+        )
+    else:
+        # Header mode (development/test only).  The subject is the user id the
+        # caller supplied; the rows are still looked up rather than trusted.
+        rows = (
+            db.query(models.User)
+            .join(models.Tenant, models.Tenant.id == models.User.tenant_id)
+            .filter(
+                models.User.id == subject.subject,
+                models.User.is_active.is_(True),
+                models.Tenant.is_active.is_(True),
+            )
+            .all()
+        )
+
+    if not rows:
+        return []
+
+    tenant_ids = [row.tenant_id for row in rows]
+    tenants = {
+        tenant.id: tenant
+        for tenant in db.query(models.Tenant).filter(models.Tenant.id.in_(tenant_ids)).all()
+    }
+    return [
+        SelfMembershipOut(
+            tenant_id=row.tenant_id,
+            tenant_name=tenants[row.tenant_id].name,
+            tenant_slug=tenants[row.tenant_id].slug,
+            role=row.role,
+        )
+        for row in rows
+        if row.tenant_id in tenants
+    ]
 
 
 @router.get("/bootstrap-status")
