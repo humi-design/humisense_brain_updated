@@ -1,0 +1,228 @@
+/*
+ * Humisense design tokens.
+ *
+ * Two layers live here and the distinction matters:
+ *
+ *   1. `--hs-*` are the semantic tokens. Everything new should use these.
+ *   2. `--bg`, `--text`, `--accent`, ... are legacy aliases that point at the
+ *      semantic tokens. The Layer 1 screens were written against these names,
+ *      so aliasing them makes the entire existing surface theme-aware without
+ *      rewriting 2,000 lines of page CSS.
+ *
+ * Light is the default (`:root`); dark is applied by `[data-theme="dark"]`.
+ * The attribute is set on <html> by an inline script in index.html before first
+ * paint, so there is no flash of the wrong theme.
+ *
+ * Colour is never the only signal: every status also carries text or an icon.
+ */
+
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* -- surfaces ---------------------------------------------------------- */
+  --hs-bg: #ffffff;
+  --hs-bg-subtle: #f8fafc;
+  --hs-sidebar: #fbfcfd;
+  --hs-surface: #ffffff;
+  --hs-surface-raised: #ffffff;
+  --hs-surface-sunken: #f1f5f9;
+  --hs-hover: #f1f5f9;
+
+  /* -- text -------------------------------------------------------------- */
+  --hs-text: #0f172a;
+  --hs-text-secondary: #475569;
+  --hs-text-muted: #64748b;
+  --hs-text-faint: #94a3b8;
+  --hs-text-inverse: #ffffff;
+
+  /* -- borders ----------------------------------------------------------- */
+  --hs-border: #e4e8ee;
+  --hs-border-strong: #cbd5e1;
+
+  /* -- brand accent ------------------------------------------------------ */
+  --hs-accent: #2f6feb;
+  --hs-accent-hover: #2560d4;
+  --hs-accent-soft: rgba(47, 111, 235, 0.09);
+  --hs-accent-border: rgba(47, 111, 235, 0.32);
+
+  /* -- status ------------------------------------------------------------ */
+  --hs-success: #0f7a52;
+  --hs-success-soft: rgba(15, 122, 82, 0.1);
+  --hs-success-border: rgba(15, 122, 82, 0.3);
+  --hs-success-text: #14532d;
+
+  --hs-warning: #a15c07;
+  --hs-warning-soft: rgba(161, 92, 7, 0.1);
+  --hs-warning-border: rgba(161, 92, 7, 0.3);
+  --hs-warning-text: #713f12;
+
+  --hs-error: #c62828;
+  --hs-error-soft: rgba(198, 40, 40, 0.09);
+  --hs-error-border: rgba(198, 40, 40, 0.3);
+  --hs-error-text: #7f1d1d;
+
+  --hs-info: #0b6bcb;
+  --hs-info-soft: rgba(11, 107, 203, 0.09);
+  --hs-info-border: rgba(11, 107, 203, 0.3);
+  --hs-info-text: #0c4a6e;
+
+  /* -- focus ------------------------------------------------------------- */
+  --hs-focus: #2f6feb;
+  --hs-focus-ring: 0 0 0 3px rgba(47, 111, 235, 0.28);
+
+  /* -- elevation --------------------------------------------------------- */
+  --hs-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --hs-shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
+  --hs-shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.14);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --hs-bg: #0b0f19;
+  --hs-bg-subtle: #0f1420;
+  --hs-sidebar: #0d121c;
+  --hs-surface: #121826;
+  --hs-surface-raised: #161d2e;
+  --hs-surface-sunken: #090d15;
+  --hs-hover: #1c2438;
+
+  --hs-text: #e8ecf5;
+  --hs-text-secondary: #b3bdd0;
+  --hs-text-muted: #8b96ad;
+  --hs-text-faint: #616d85;
+  --hs-text-inverse: #0b0f19;
+
+  --hs-border: #232c42;
+  --hs-border-strong: #2e3950;
+
+  --hs-accent: #4f8cff;
+  --hs-accent-hover: #3d7ef5;
+  --hs-accent-soft: rgba(79, 140, 255, 0.14);
+  --hs-accent-border: rgba(79, 140, 255, 0.32);
+
+  --hs-success: #35d07f;
+  --hs-success-soft: rgba(53, 208, 127, 0.13);
+  --hs-success-border: rgba(53, 208, 127, 0.3);
+  --hs-success-text: #c8f5de;
+
+  --hs-warning: #f2b544;
+  --hs-warning-soft: rgba(242, 181, 68, 0.13);
+  --hs-warning-border: rgba(242, 181, 68, 0.3);
+  --hs-warning-text: #ffe6b3;
+
+  --hs-error: #f2555a;
+  --hs-error-soft: rgba(242, 85, 90, 0.13);
+  --hs-error-border: rgba(242, 85, 90, 0.3);
+  --hs-error-text: #ffd0d1;
+
+  --hs-info: #59b7ff;
+  --hs-info-soft: rgba(89, 183, 255, 0.13);
+  --hs-info-border: rgba(89, 183, 255, 0.3);
+  --hs-info-text: #cfe8ff;
+
+  --hs-focus: #4f8cff;
+  --hs-focus-ring: 0 0 0 3px rgba(79, 140, 255, 0.32);
+
+  --hs-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --hs-shadow-md: 0 6px 18px rgba(0, 0, 0, 0.38);
+  --hs-shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+
+:root {
+  /* -- spacing ----------------------------------------------------------- */
+  --hs-space-1: 4px;
+  --hs-space-2: 8px;
+  --hs-space-3: 12px;
+  --hs-space-4: 16px;
+  --hs-space-5: 20px;
+  --hs-space-6: 24px;
+  --hs-space-8: 32px;
+  --hs-space-10: 40px;
+  --hs-space-12: 56px;
+
+  /* -- radii ------------------------------------------------------------- */
+  --hs-radius-sm: 6px;
+  --hs-radius-md: 8px;
+  --hs-radius-lg: 10px;
+  --hs-radius-xl: 14px;
+  --hs-radius-full: 999px;
+
+  /* -- type scale -------------------------------------------------------- */
+  --hs-font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    system-ui, sans-serif;
+  --hs-font-mono: "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
+
+  --hs-text-2xs: 10.5px;
+  --hs-text-xs: 11.5px;
+  --hs-text-sm: 12.5px;
+  --hs-text-base: 13.5px;
+  --hs-text-md: 15px;
+  --hs-text-lg: 17px;
+  --hs-text-xl: 21px;
+  --hs-text-2xl: 26px;
+
+  --hs-weight-normal: 400;
+  --hs-weight-medium: 500;
+  --hs-weight-semibold: 600;
+  --hs-weight-bold: 680;
+
+  --hs-leading-tight: 1.25;
+  --hs-leading-normal: 1.55;
+
+  /* -- motion ------------------------------------------------------------ */
+  --hs-duration-fast: 120ms;
+  --hs-duration-base: 180ms;
+  --hs-ease: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* -- z-index ----------------------------------------------------------- */
+  --hs-z-sticky: 100;
+  --hs-z-dropdown: 1000;
+  --hs-z-overlay: 1900;
+  --hs-z-modal: 2000;
+  --hs-z-toast: 3000;
+
+  /* -- layout ------------------------------------------------------------ */
+  --hs-sidebar-width: 244px;
+  --hs-sidebar-collapsed: 60px;
+  --hs-header-height: 56px;
+  --hs-content-max: 1320px;
+
+  /* -- breakpoints (documentation; media queries cannot read variables) --- */
+  /* sm 640 · md 768 · lg 1024 · xl 1280 */
+
+  /* ---------------------------------------------------------------------- */
+  /* Legacy aliases. Existing Layer 1 CSS uses these names; they now resolve  */
+  /* to the semantic tokens above, so those screens follow the active theme.  */
+  /* ---------------------------------------------------------------------- */
+  --bg: var(--hs-bg);
+  --bg-elevated: var(--hs-surface);
+  --bg-panel: var(--hs-surface-raised);
+  --bg-hover: var(--hs-hover);
+  --border: var(--hs-border);
+  --border-strong: var(--hs-border-strong);
+  --text: var(--hs-text);
+  --text-muted: var(--hs-text-muted);
+  --text-dim: var(--hs-text-faint);
+  --accent: var(--hs-accent);
+  --accent-soft: var(--hs-accent-soft);
+  --success: var(--hs-success);
+  --success-soft: var(--hs-success-soft);
+  --warning: var(--hs-warning);
+  --warning-soft: var(--hs-warning-soft);
+  --danger: var(--hs-error);
+  --danger-soft: var(--hs-error-soft);
+  --info: var(--hs-info);
+  --info-soft: var(--hs-info-soft);
+  --radius: var(--hs-radius-lg);
+  --radius-sm: var(--hs-radius-sm);
+  --shadow: var(--hs-shadow-lg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --hs-duration-fast: 0ms;
+    --hs-duration-base: 0ms;
+  }
+}
