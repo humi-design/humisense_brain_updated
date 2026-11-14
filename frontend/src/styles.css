@@ -1,28 +1,12 @@
-:root {
-  --bg: #0b0f19;
-  --bg-elevated: #121826;
-  --bg-panel: #161d2e;
-  --bg-hover: #1c2438;
-  --border: #232c42;
-  --border-strong: #2e3950;
-  --text: #e8ecf5;
-  --text-muted: #8b96ad;
-  --text-dim: #616d85;
-  --accent: #4f8cff;
-  --accent-soft: rgba(79, 140, 255, 0.14);
-  --success: #35d07f;
-  --success-soft: rgba(53, 208, 127, 0.14);
-  --warning: #f2b544;
-  --warning-soft: rgba(242, 181, 68, 0.14);
-  --danger: #f2555a;
-  --danger-soft: rgba(242, 85, 90, 0.14);
-  --info: #59b7ff;
-  --info-soft: rgba(89, 183, 255, 0.14);
-  --radius: 10px;
-  --radius-sm: 7px;
-  --shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-}
+@import "./design-system/tokens/tokens.css";
+
+/*
+ * Application styles.
+ *
+ * Colour, spacing, type and motion all come from the token layer above, so
+ * every rule here follows the active theme automatically. Nothing in this file
+ * should hardcode a colour.
+ */
 
 * {
   box-sizing: border-box;
@@ -30,11 +14,13 @@
 
 body {
   margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  font-size: 14px;
-  line-height: 1.55;
+  background: var(--hs-bg);
+  color: var(--hs-text);
+  font-family: var(--hs-font-sans);
+  font-size: var(--hs-text-base);
+  line-height: var(--hs-leading-normal);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 a {
@@ -90,7 +76,7 @@ pre {
   place-items: center;
   font-weight: 700;
   font-size: 14px;
-  color: #fff;
+  color: var(--hs-text-inverse);
 }
 
 .brand-text {
@@ -220,11 +206,11 @@ pre {
 .btn:hover:not(:disabled) { background: var(--bg-hover); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .btn-primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
+  background: var(--hs-accent);
+  border-color: var(--hs-accent);
+  color: var(--hs-text-inverse);
 }
-.btn-primary:hover:not(:disabled) { background: #3d7ef5; }
+.btn-primary:hover:not(:disabled) { background: var(--hs-accent-hover); }
 .btn-danger { background: var(--danger-soft); border-color: var(--danger); color: var(--danger); }
 .btn-ghost { background: transparent; border-color: transparent; color: var(--text-muted); }
 .btn-ghost:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
@@ -269,11 +255,11 @@ pre {
   white-space: nowrap;
 }
 .badge-neutral { background: var(--bg-panel); color: var(--text-muted); border-color: var(--border); }
-.badge-success { background: var(--success-soft); color: var(--success); border-color: rgba(53,208,127,0.3); }
-.badge-warning { background: var(--warning-soft); color: var(--warning); border-color: rgba(242,181,68,0.3); }
-.badge-danger { background: var(--danger-soft); color: var(--danger); border-color: rgba(242,85,90,0.3); }
-.badge-info { background: var(--info-soft); color: var(--info); border-color: rgba(89,183,255,0.3); }
-.badge-accent { background: var(--accent-soft); color: var(--accent); border-color: rgba(79,140,255,0.3); }
+.badge-success { background: var(--hs-success-soft); color: var(--hs-success); border-color: var(--hs-success-border); }
+.badge-warning { background: var(--hs-warning-soft); color: var(--hs-warning); border-color: var(--hs-warning-border); }
+.badge-danger { background: var(--hs-error-soft); color: var(--hs-error); border-color: var(--hs-error-border); }
+.badge-info { background: var(--hs-info-soft); color: var(--hs-info); border-color: var(--hs-info-border); }
+.badge-accent { background: var(--hs-accent-soft); color: var(--hs-accent); border-color: var(--hs-accent-border); }
 
 .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 
@@ -343,10 +329,10 @@ table.data tr:hover td { background: var(--bg-hover); }
   gap: 10px;
   align-items: flex-start;
 }
-.banner-info { background: var(--info-soft); border-color: rgba(89,183,255,0.3); color: #cfe8ff; }
-.banner-warning { background: var(--warning-soft); border-color: rgba(242,181,68,0.3); color: #ffe6b3; }
-.banner-danger { background: var(--danger-soft); border-color: rgba(242,85,90,0.3); color: #ffd0d1; }
-.banner-success { background: var(--success-soft); border-color: rgba(53,208,127,0.3); color: #c8f5de; }
+.banner-info { background: var(--hs-info-soft); border-color: var(--hs-info-border); color: var(--hs-info-text); }
+.banner-warning { background: var(--hs-warning-soft); border-color: var(--hs-warning-border); color: var(--hs-warning-text); }
+.banner-danger { background: var(--hs-error-soft); border-color: var(--hs-error-border); color: var(--hs-error-text); }
+.banner-success { background: var(--hs-success-soft); border-color: var(--hs-success-border); color: var(--hs-success-text); }
 
 .muted { color: var(--text-muted); }
 .dim { color: var(--text-dim); }
@@ -425,8 +411,8 @@ table.data tr:hover td { background: var(--bg-hover); }
 
 .spinner {
   width: 14px; height: 14px;
-  border: 2px solid rgba(255,255,255,0.25);
-  border-top-color: #fff;
+  border: 2px solid var(--hs-accent-soft);
+  border-top-color: var(--hs-accent);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }

@@ -13,9 +13,18 @@ import uuid
 
 import pytest
 
-os.environ.setdefault("HUMISENSE_ENVIRONMENT", "test")
-os.environ.setdefault("HUMISENSE_DATABASE_URL", "sqlite+pysqlite:///:memory:")
-os.environ.setdefault("HUMISENSE_CREDENTIAL_ENCRYPTION_KEY", "0" * 64)
+# The suite must be hermetic.  Running the application requires HUMISENSE_*
+# variables to be exported in the shell, and pydantic-settings gives a real
+# environment variable precedence over a model default.  Leaving them in place
+# would silently reconfigure the tests - e.g. an exported HUMISENSE_AUTH_MODE=oidc
+# turns the "header mode is the default" assertion into a failure.  Clear the
+# namespace, then pin the values the tests are written against.
+for _key in [key for key in os.environ if key.startswith("HUMISENSE_")]:
+    del os.environ[_key]
+
+os.environ["HUMISENSE_ENVIRONMENT"] = "test"
+os.environ["HUMISENSE_DATABASE_URL"] = "sqlite+pysqlite:///:memory:"
+os.environ["HUMISENSE_CREDENTIAL_ENCRYPTION_KEY"] = "0" * 64
 
 from app.core.config import get_settings  # noqa: E402
 

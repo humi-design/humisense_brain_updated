@@ -46,6 +46,37 @@ but is really a sequencing mistake.
 memberships response. The stored value is re-validated on every resolution.
 The backend re-validates independently, so a tampered client cannot widen access.
 
+## Frontend architecture (Prompt 01)
+
+The app is a product shell, not a page list. Structure:
+
+- `src/design-system/` — `tokens/tokens.css` (semantic `--hs-*` tokens, light/dark via
+  `[data-theme]` on `<html>`) and `tokens/components.css` (`.hs-*` classes).
+  `themes/ThemeProvider.tsx` exposes `useTheme()`. `index.html` sets the theme
+  synchronously before paint — keep it in step with the provider.
+- `src/components/ui/` — component library. Import from the barrel `components/ui`,
+  not from individual files.
+- `src/components/{layout,navigation,feedback}/` — shell pieces. `navigation/navConfig.ts`
+  is the single source of truth for nav (sidebar, drawer and palette all read it).
+- `src/app/` — `AppProviders`, `AppShell`, `routes`. `src/features/` — product areas.
+
+The six Layer 1 screens live in `src/pages/` and are mounted under `/apps/*`; legacy
+top-level paths redirect there. Product areas with no backend use `features/PlannedArea.tsx`
+and must never render sample records — they state the area is planned and name the layer
+that will provide it.
+
+## Testing notes
+
+`backend/tests/conftest.py` clears the `HUMISENSE_*` namespace before importing settings.
+This is deliberate: running the app requires those variables to be exported, and
+pydantic-settings gives a real env var precedence over a model default. Do not switch it
+back to `os.environ.setdefault` — an exported `HUMISENSE_DATABASE_URL` would point the
+suite at the dev database and `drop_all` it.
+
+Frontend tests are labelled with `MOCKED:` in the file header when a dependency is
+injected. Keep that convention so a mocked pass is never mistaken for a verified
+integration.
+
 ## Local OIDC testing
 
 `ghcr.io/navikt/mock-oauth2-server` is used for end-to-end verification:

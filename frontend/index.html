@@ -3,7 +3,38 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Humisense · Connected Apps</title>
+    <meta name="color-scheme" content="light dark" />
+    <title>Humisense · Brain</title>
+    <script>
+      /*
+       * Resolve the theme before first paint.
+       *
+       * This runs synchronously, ahead of the bundle being parsed, so the
+       * correct theme is painted on the very first frame. Without it, a
+       * dark-theme user sees a white flash while the app loads.
+       *
+       * Keep in step with src/design-system/themes/ThemeProvider.tsx.
+       */
+      (function () {
+        try {
+          var stored = localStorage.getItem("humisense.theme");
+          var pref =
+            stored === "light" || stored === "dark" || stored === "system"
+              ? stored
+              : "system";
+          var dark =
+            pref === "dark" ||
+            (pref === "system" &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.setAttribute(
+            "data-theme",
+            dark ? "dark" : "light",
+          );
+        } catch (e) {
+          document.documentElement.setAttribute("data-theme", "light");
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
