@@ -293,6 +293,23 @@ class MembershipOut(BaseModel):
     created_at: datetime
 
 
+class SelfMembershipOut(BaseModel):
+    """One of the caller's own memberships.
+
+    Deliberately narrower than :class:`MembershipOut`: it exposes only what the
+    frontend needs to offer a tenant choice, and no other member's data.  There
+    is no ``email``/``display_name`` field because this is a self-scoped read,
+    not an administrative one.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    tenant_id: str
+    tenant_name: str
+    tenant_slug: str | None
+    role: str
+
+
 class MembershipActiveIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

@@ -362,6 +362,34 @@ class TenantService:
         self.session.flush()
         return membership
 
+    # -- self-scoped reads ------------------------------------------------
+
+    def memberships_for_subject(self, issuer: str, subject: str) -> list[models.User]:
+        """Active memberships held by one verified provider subject.
+
+        This is the *self-scoped* read: it is the only membership query that is
+        not an administrative action, and it takes its filter from verified
+        token claims rather than from anything the caller supplies.  A caller
+        can therefore only ever learn about their own memberships, and only
+        within active tenants — the same rule ``app.api.deps`` applies when it
+        resolves a principal.
+
+        The result is what the frontend is allowed to offer as a tenant choice.
+        Selecting one is still re-validated server-side on every request.
+        """
+        stmt = (
+            select(models.User)
+            .join(models.Tenant, models.Tenant.id == models.User.tenant_id)
+            .where(
+                models.User.external_issuer == issuer,
+                models.User.external_subject == subject,
+                models.User.is_active.is_(True),
+                models.Tenant.is_active.is_(True),
+            )
+            .order_by(models.User.created_at)
+        )
+        return list(self.session.execute(stmt).scalars().all())
+
     # -- bootstrap -------------------------------------------------------
 
     def bootstrap_required(self) -> bool:

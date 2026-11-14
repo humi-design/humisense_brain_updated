@@ -30,8 +30,8 @@ not 404, because the subject is authenticated but not authorised there.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Annotated
+from dataclasses import dataclass, field
+from typing import Annotated, Any
 
 from fastapi import Depends, Header
 from sqlalchemy import select
@@ -65,6 +65,21 @@ class Principal:
     @property
     def is_admin(self) -> bool:
         return self.role.lower() in ADMIN_ROLES
+
+
+@dataclass(frozen=True)
+class VerifiedSubject:
+    """A verified identity with no tenant attached.
+
+    Produced by :func:`get_verified_subject` for the few endpoints that must be
+    reachable *before* a tenant is chosen.  It is intentionally weaker than
+    :class:`Principal`: it carries no role and grants no access to tenant data.
+    """
+
+    subject: str
+    issuer: str | None
+    source: str
+    claims: dict[str, Any] = field(default_factory=dict)
 
 
 def get_db() -> Session:
@@ -208,6 +223,45 @@ async def get_principal(
     )
 
 
+async def get_verified_subject(
+    x_tenant_id: Annotated[str | None, Header(alias="X-Tenant-Id")] = None,
+    x_user_id: Annotated[str | None, Header(alias="X-User-Id")] = None,
+    x_user_role: Annotated[str | None, Header(alias="X-User-Role")] = None,
+    authorization: Annotated[str | None, Header()] = None,
+) -> VerifiedSubject:
+    """Verify the caller's token *without* resolving a tenant membership.
+
+    :func:`get_principal` cannot serve a subject that belongs to more than one
+    organization and has not yet chosen one — it refuses such a request as
+    ambiguous.  That is correct for every tenant-scoped endpoint, but it would
+    make it impossible to *discover* the available memberships in the first
+    place, which is the one thing a multi-organization user needs.
+
+    This dependency resolves exactly that: a verified identity with no tenant
+    attached.  It grants no access to any tenant data.  Endpoints that use it
+    must be self-scoped from the verified claims alone.
+    """
+    if settings.auth_mode_normalised == "oidc":
+        verifier = _verifier()
+        if verifier is None:  # pragma: no cover - guarded by Settings
+            raise AuthenticationError("Authentication is not configured.")
+        token = _bearer_token(authorization)
+        try:
+            claims = verifier.verify(token)
+        except TokenVerificationError as exc:
+            logger.warning("token_rejected", reason=exc.reason)
+            raise AuthenticationError("The supplied credentials are not valid.") from exc
+        return VerifiedSubject(
+            subject=claims.subject, issuer=claims.issuer, source="oidc", claims=claims.claims
+        )
+
+    if not settings.allows_header_identity:
+        raise AuthenticationError("Header authentication is not permitted here.")
+    if not x_user_id:
+        raise AuthenticationError("X-User-Id header is required.")
+    return VerifiedSubject(subject=x_user_id, issuer=None, source="header", claims={})
+
+
 def require_role(*roles: str):
     """Authorize against the *server-resolved* role on the principal."""
     allowed = frozenset(r.lower() for r in roles)
@@ -227,3 +281,5 @@ def require_role(*roles: str):
 DbSession = Annotated[Session, Depends(get_db)]
 CurrentPrincipal = Annotated[Principal, Depends(get_principal)]
 AdminPrincipal = Annotated[Principal, Depends(require_role("owner", "admin"))]
+#: Verified identity without a tenant — for pre-selection endpoints only.
+VerifiedSubjectDep = Annotated[VerifiedSubject, Depends(get_verified_subject)]
